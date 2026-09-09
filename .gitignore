@@ -1,0 +1,12 @@
+# Python
+producer/.venv/
+__pycache__/
+*.pyc
+
+# Terraform
+terraform/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+
+fraud-consumer-key.json
