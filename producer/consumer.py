@@ -21,7 +21,6 @@ BQ_TABLE = "transactions"
 # ============================================================
 
 subscriber = pubsub_v1.SubscriberClient()
-
 bigquery_client = bigquery.Client(project=PROJECT_ID)
 
 subscription_path = subscriber.subscription_path(
@@ -52,52 +51,74 @@ def detect_fraud(transaction):
 
 def callback(message):
 
+    received_at = datetime.now(timezone.utc).isoformat()
+
+    print("\n" + "=" * 50, flush=True)
+    print("MESSAGE RECEIVED FROM PUB/SUB", flush=True)
+    print("=" * 50, flush=True)
+
+    print(f"Pub/Sub Message ID : {message.message_id}", flush=True)
+    print(f"Received At        : {received_at}", flush=True)
+
     try:
 
-        transaction = json.loads(message.data.decode("utf-8"))
+        transaction = json.loads(
+            message.data.decode("utf-8")
+        )
+
+        print(
+            f"Transaction ID     : "
+            f"{transaction['transaction_id']}",
+            flush=True
+        )
+
+        print(
+            f"User ID            : "
+            f"{transaction['user_id']}",
+            flush=True
+        )
+
+        print(
+            f"Amount             : "
+            f"{transaction['amount']}",
+            flush=True
+        )
+
+        print(
+            f"Merchant           : "
+            f"{transaction['merchant']}",
+            flush=True
+        )
+
+        print(
+            f"Location           : "
+            f"{transaction['location']}",
+            flush=True
+        )
+
+        # ----------------------------------------------------
+        # Fraud Detection
+        # ----------------------------------------------------
 
         status, fraud_reason = detect_fraud(transaction)
 
-        processed_at = datetime.now(timezone.utc).isoformat()
+        print(
+            f"Status             : {status}",
+            flush=True
+        )
+
+        print(
+            f"Reason             : {fraud_reason}",
+            flush=True
+        )
 
         # ----------------------------------------------------
-        # Display transaction
+        # BigQuery row
         # ----------------------------------------------------
 
-        print("\nTransaction received")
-        print("--------------------")
-
-        print(
-            f"Transaction ID : "
-            f"{transaction['transaction_id']}"
-        )
-
-        print(
-            f"User ID        : "
-            f"{transaction['user_id']}"
-        )
-
-        print(
-            f"Amount         : "
-            f"{transaction['amount']}"
-        )
-
-        print(
-            f"Merchant       : "
-            f"{transaction['merchant']}"
-        )
-
-        print(
-            f"Location       : "
-            f"{transaction['location']}"
-        )
-
-        print(f"Status         : {status}")
-        print(f"Reason         : {fraud_reason}")
-
-        # ----------------------------------------------------
-        # Prepare BigQuery row
-        # ----------------------------------------------------
+        processed_at = datetime.now(
+            timezone.utc
+        ).isoformat()
 
         row = {
             "transaction_id": transaction["transaction_id"],
@@ -112,7 +133,7 @@ def callback(message):
         }
 
         # ----------------------------------------------------
-        # Insert into BigQuery
+        # BigQuery insertion
         # ----------------------------------------------------
 
         errors = bigquery_client.insert_rows_json(
@@ -121,20 +142,57 @@ def callback(message):
         )
 
         if errors:
-            print("\nBigQuery insertion failed:")
-            print(errors)
+
+            print(
+                "\nBigQuery insertion FAILED:",
+                flush=True
+            )
+
+            print(errors, flush=True)
+
+            print(
+                "\nMessage will be NACKED.",
+                flush=True
+            )
 
             message.nack()
+
             return
 
-        print("\nBigQuery insertion successful!")
+        print(
+            "\nBigQuery insertion successful!",
+            flush=True
+        )
+
+        # ----------------------------------------------------
+        # ACK only after successful processing
+        # ----------------------------------------------------
 
         message.ack()
 
+        print(
+            "Message acknowledged successfully.",
+            flush=True
+        )
+
+        print("=" * 50, flush=True)
+
     except Exception as e:
 
-        print("\nError processing message:")
-        print(e)
+        print(
+            "\nERROR PROCESSING MESSAGE:",
+            flush=True
+        )
+
+        print(
+            repr(e),
+            flush=True
+        )
+
+        print(
+            "Message will be NACKED.",
+            flush=True
+        )
 
         message.nack()
 
@@ -143,18 +201,54 @@ def callback(message):
 # Start Consumer
 # ============================================================
 
-print("Fraud detection consumer is running...")
-print(f"Listening on: {subscription_path}")
-print(f"BigQuery table: {table_id}")
+print(
+    "\nFraud Detection Consumer is starting...",
+    flush=True
+)
 
-streaming_pull_future = subscriber.subscribe(
-    subscription_path,
-    callback=callback
+print(
+    f"Project      : {PROJECT_ID}",
+    flush=True
+)
+
+print(
+    f"Subscription : {subscription_path}",
+    flush=True
+)
+
+print(
+    f"BigQuery     : {table_id}",
+    flush=True
 )
 
 
 # ============================================================
-# Keep Consumer Running
+# Flow Control
+# ============================================================
+
+flow_control = pubsub_v1.types.FlowControl(
+    max_messages=10
+)
+
+
+# ============================================================
+# Start Streaming Pull
+# ============================================================
+
+streaming_pull_future = subscriber.subscribe(
+    subscription_path,
+    callback=callback,
+    flow_control=flow_control
+)
+
+print(
+    "\nWaiting for transactions...\n",
+    flush=True
+)
+
+
+# ============================================================
+# Keep Consumer Alive
 # ============================================================
 
 try:
@@ -163,5 +257,33 @@ try:
 
 except KeyboardInterrupt:
 
+    print(
+        "\nStopping consumer...",
+        flush=True
+    )
+
     streaming_pull_future.cancel()
-    streaming_pull_future.result()
+
+    try:
+        streaming_pull_future.result()
+    except Exception:
+        pass
+
+    print(
+        "Consumer stopped.",
+        flush=True
+    )
+
+except Exception as e:
+
+    print(
+        "\nStreaming pull stopped unexpectedly:",
+        flush=True
+    )
+
+    print(
+        repr(e),
+        flush=True
+    )
+
+    streaming_pull_future.cancel()

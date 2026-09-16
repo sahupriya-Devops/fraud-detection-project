@@ -1,12 +1,30 @@
 # Python
-producer/.venv/
 __pycache__/
-*.pyc
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+*.env
+
+# Google Cloud credentials
+*.json
 
 # Terraform
-terraform/.terraform/
+.terraform/
 *.tfstate
 *.tfstate.*
 crash.log
+crash.*.log
 
-fraud-consumer-key.json
+# Terraform sensitive files
+*.tfvars
+*.tfvars.json
+
+# Docker
+*.log

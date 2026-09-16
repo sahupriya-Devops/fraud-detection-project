@@ -6,7 +6,6 @@ COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY producer.py .
 COPY consumer.py .
 
-CMD ["python", "consumer.py"]
+CMD ["python", "-u", "consumer.py"]
