@@ -13,12 +13,12 @@ REM ============================================================
 REM CONFIGURATION
 REM ============================================================
 
-set "PROJECT_ID=ashishandpriya"
+set "PROJECT_ID=priya-509505"
 set "TOPIC_ID=fraud-events"
 set "SUBSCRIPTION_ID=fraud-processor"
 set "CONTAINER_NAME=fraud-consumer"
 set "IMAGE_NAME=fraud-detection-consumer"
-set "BQ_TABLE=ashishandpriya.fraud_detection.transactions"
+set "BQ_TABLE=priya-509505.fraud_detection.transactions"
 
 REM ============================================================
 REM 1. CHECK DOCKER

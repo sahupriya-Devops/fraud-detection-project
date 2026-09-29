@@ -145,7 +145,7 @@ asia-south1
 The image is pushed using:
 
 ``` text
-asia-south1-docker.pkg.dev/ashishandpriya/fraud-detection/fraud-detection-consumer:latest
+asia-south1-docker.pkg.dev/priya-509505/fraud-detection/fraud-detection-consumer:latest
 ```
 
 Artifact Registry provides a centralized and secure location for storing
@@ -161,7 +161,7 @@ transaction data.
 Project:
 
 ``` text
-ashishandpriya
+priya-509505
 ```
 
 Dataset:
@@ -179,7 +179,7 @@ transactions
 Fully qualified table:
 
 ``` text
-ashishandpriya.fraud_detection.transactions
+priya-509505.fraud_detection.transactions
 ```
 
 The table stores both legitimate and fraudulent transactions.
@@ -195,7 +195,7 @@ Typical columns include:
   `location`         Transaction location
   `timestamp`        Transaction timestamp
   `status`           Fraud detection result
-  `reason`           Explanation for the result
+  `fraud_reason`     Explanation for the fraud decision
 
 ------------------------------------------------------------------------
 
@@ -255,7 +255,9 @@ fraud-detection-project/
 │   ├── producer.py
 │   ├── consumer.py
 │   ├── Dockerfile
-│   └── requirements.txt
+│   ├── .dockerignore
+│   ├── requirements.txt
+│   └── start_consumer.bat
 │
 ├── terraform/
 │   ├── main.tf
@@ -307,7 +309,7 @@ producer/requirements.txt
 Install them locally using:
 
 ``` bash
-pip install -r requirements.txt
+pip install -r producer/requirements.txt
 ```
 
 ------------------------------------------------------------------------
@@ -319,7 +321,7 @@ pip install -r requirements.txt
 Set the active GCP project:
 
 ``` bash
-gcloud config set project ashishandpriya
+gcloud config set project priya-509505
 ```
 
 Verify:
@@ -331,7 +333,7 @@ gcloud config get-value project
 Expected:
 
 ``` text
-ashishandpriya
+priya-509505
 ```
 
 ------------------------------------------------------------------------
@@ -426,18 +428,13 @@ Default Credentials.
 
 # Service Account
 
-A dedicated service account is used for the fraud detection consumer.
+The consumer requires Google Cloud credentials with permissions to read
+from Pub/Sub and write processed transactions to BigQuery.
 
-Example service account:
+For local development, Google Application Default Credentials (ADC) are
+used. The credential files are intentionally excluded from GitHub.
 
-``` text
-fraud-consumer@ashishandpriya.iam.gserviceaccount.com
-```
-
-The service account is granted the permissions required by the
-application.
-
-Current roles include:
+The consumer requires permissions equivalent to:
 
 ``` text
 roles/bigquery.dataEditor
@@ -457,11 +454,9 @@ The service account JSON key is a sensitive credential.
 
 It must never be committed to GitHub.
 
-The project `.gitignore` contains:
-
-``` text
-fraud-consumer-key.json
-```
+The project `.gitignore` excludes JSON credential files and other
+sensitive configuration files from source control. Do not commit service
+account keys, OAuth credentials, or local ADC files.
 
 If a service account key is accidentally exposed, it should be revoked
 and replaced immediately.
@@ -511,6 +506,38 @@ engine is running correctly.
 
 ------------------------------------------------------------------------
 
+# Automated Consumer Startup
+
+The project includes `start_consumer.bat` to simplify local Docker
+startup on Windows. The script checks Docker, the Google Cloud CLI, the
+active GCP project, the Pub/Sub topic, and the Pub/Sub subscription. It
+then builds the Docker image, removes an existing `fraud-consumer`
+container if present, starts a new container, and streams its logs.
+
+Run it from the `producer` directory:
+
+``` cmd
+start_consumer.bat
+```
+
+The consumer container is named:
+
+``` text
+fraud-consumer
+```
+
+Useful commands:
+
+``` cmd
+docker stop fraud-consumer
+docker logs -f fraud-consumer
+```
+
+Press `Ctrl+C` while viewing logs only to stop log viewing; the
+container continues running.
+
+------------------------------------------------------------------------
+
 # Run the Consumer
 
 Run the consumer container:
@@ -524,9 +551,10 @@ docker run --rm -it ^
 Expected output:
 
 ``` text
-Fraud detection consumer is running...
-Listening on: projects/ashishandpriya/subscriptions/fraud-processor
-BigQuery table: ashishandpriya.fraud_detection.transactions
+Fraud Detection Consumer is starting...
+Project      : priya-509505
+Subscription : projects/priya-509505/subscriptions/fraud-processor
+BigQuery     : priya-509505.fraud_detection.transactions
 ```
 
 The consumer will continue listening for Pub/Sub messages.
@@ -644,6 +672,30 @@ Reason         : Transaction appears normal
 
 ------------------------------------------------------------------------
 
+# End-to-End Validation
+
+The pipeline has been tested successfully in GCP project `priya-509505`.
+
+The validation covered:
+
+-   Terraform infrastructure provisioning and reconciliation.
+-   Pub/Sub topic `fraud-events`.
+-   Pub/Sub subscription `fraud-processor`.
+-   Dockerized consumer startup.
+-   Transaction publishing with `producer.py`.
+-   Fraud classification for transactions above the configured threshold.
+-   Legitimate classification for transactions at or below the threshold.
+-   Successful BigQuery insertion.
+-   Pub/Sub acknowledgement after successful BigQuery processing.
+-   BigQuery verification of processed transactions.
+
+A successful test processed four transactions: two were classified as
+`FRAUD` because their amounts exceeded 10,000, and two were classified
+as `LEGITIMATE`. Each published message was processed once in the
+validation run and written successfully to BigQuery.
+
+------------------------------------------------------------------------
+
 # BigQuery Validation
 
 After the consumer processes transactions, the results can be queried in
@@ -660,8 +712,8 @@ SELECT
   location,
   timestamp,
   status,
-  reason
-FROM `ashishandpriya.fraud_detection.transactions`
+  fraud_reason
+FROM `priya-509505.fraud_detection.transactions`
 ORDER BY timestamp DESC;
 ```
 
@@ -671,7 +723,7 @@ ORDER BY timestamp DESC;
 
 ``` sql
 SELECT *
-FROM `ashishandpriya.fraud_detection.transactions`
+FROM `priya-509505.fraud_detection.transactions`
 WHERE status = 'FRAUD';
 ```
 
@@ -682,7 +734,7 @@ WHERE status = 'FRAUD';
 ``` sql
 SELECT
   COUNT(*) AS fraud_count
-FROM `ashishandpriya.fraud_detection.transactions`
+FROM `priya-509505.fraud_detection.transactions`
 WHERE status = 'FRAUD';
 ```
 
@@ -694,7 +746,7 @@ WHERE status = 'FRAUD';
 SELECT
   status,
   COUNT(*) AS transaction_count
-FROM `ashishandpriya.fraud_detection.transactions`
+FROM `priya-509505.fraud_detection.transactions`
 GROUP BY status;
 ```
 
@@ -710,7 +762,7 @@ SELECT
   merchant,
   location,
   status
-FROM `ashishandpriya.fraud_detection.transactions`
+FROM `priya-509505.fraud_detection.transactions`
 ORDER BY amount DESC
 LIMIT 10;
 ```
@@ -731,13 +783,13 @@ Tag the image:
 
 ``` bash
 docker tag fraud-detection-consumer:latest \
-asia-south1-docker.pkg.dev/ashishandpriya/fraud-detection/fraud-detection-consumer:latest
+asia-south1-docker.pkg.dev/priya-509505/fraud-detection/fraud-detection-consumer:latest
 ```
 
 Push the image:
 
 ``` bash
-docker push asia-south1-docker.pkg.dev/ashishandpriya/fraud-detection/fraud-detection-consumer:latest
+docker push asia-south1-docker.pkg.dev/priya-509505/fraud-detection/fraud-detection-consumer:latest
 ```
 
 The image can then be used by other GCP compute services such as Cloud

@@ -9,6 +9,8 @@ resource "google_bigquery_table" "transactions" {
   table_id   = "transactions"
   project    = var.project_id
 
+  deletion_protection = false
+
   schema = <<EOF
 [
   {

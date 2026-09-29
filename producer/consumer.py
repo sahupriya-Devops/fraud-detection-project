@@ -9,7 +9,7 @@ from google.cloud import bigquery
 # Configuration
 # ============================================================
 
-PROJECT_ID = "ashishandpriya"
+PROJECT_ID = "priya-509505"
 SUBSCRIPTION_ID = "fraud-processor"
 
 BQ_DATASET = "fraud_detection"
@@ -57,10 +57,21 @@ def callback(message):
     print("MESSAGE RECEIVED FROM PUB/SUB", flush=True)
     print("=" * 50, flush=True)
 
-    print(f"Pub/Sub Message ID : {message.message_id}", flush=True)
-    print(f"Received At        : {received_at}", flush=True)
+    print(
+        f"Pub/Sub Message ID : {message.message_id}",
+        flush=True
+    )
+
+    print(
+        f"Received At        : {received_at}",
+        flush=True
+    )
 
     try:
+
+        # ----------------------------------------------------
+        # Decode Pub/Sub message
+        # ----------------------------------------------------
 
         transaction = json.loads(
             message.data.decode("utf-8")
@@ -113,7 +124,7 @@ def callback(message):
         )
 
         # ----------------------------------------------------
-        # BigQuery row
+        # Prepare BigQuery row
         # ----------------------------------------------------
 
         processed_at = datetime.now(
@@ -133,7 +144,7 @@ def callback(message):
         }
 
         # ----------------------------------------------------
-        # BigQuery insertion
+        # Insert into BigQuery
         # ----------------------------------------------------
 
         errors = bigquery_client.insert_rows_json(
@@ -148,7 +159,10 @@ def callback(message):
                 flush=True
             )
 
-            print(errors, flush=True)
+            print(
+                errors,
+                flush=True
+            )
 
             print(
                 "\nMessage will be NACKED.",
@@ -167,15 +181,24 @@ def callback(message):
         # ----------------------------------------------------
         # ACK only after successful processing
         # ----------------------------------------------------
+        #
+        # Exactly-once delivery requires waiting for the
+        # acknowledgment result.
+        #
 
-        message.ack()
+        ack_future = message.ack_with_response()
+
+        ack_future.result()
 
         print(
             "Message acknowledged successfully.",
             flush=True
         )
 
-        print("=" * 50, flush=True)
+        print(
+            "=" * 50,
+            flush=True
+        )
 
     except Exception as e:
 
