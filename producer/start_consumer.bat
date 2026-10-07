@@ -1,6 +1,8 @@
 @echo off
 setlocal
 
+cd /d "%~dp0"
+
 title Fraud Detection Consumer
 
 echo.
